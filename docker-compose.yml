@@ -6,6 +6,11 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
@@ -20,7 +25,14 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   postgres-auth:
     image: postgres:15-alpine
@@ -32,6 +44,11 @@ services:
       POSTGRES_DB: ${POSTGRES_AUTH_DB}
     volumes:
       - postgres-auth-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_AUTH_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   postgres-query:
     image: postgres:15-alpine
@@ -43,6 +60,11 @@ services:
       POSTGRES_DB: ${POSTGRES_QUERY_DB}
     volumes:
       - postgres-query-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_QUERY_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   auth-service:
     build:
@@ -61,8 +83,11 @@ services:
       KAFKA_TOPIC: ${KAFKA_TOPIC}
       JWT_SECRET: ${JWT_SECRET}
     depends_on:
-      - postgres-auth
-      - kafka
+      postgres-auth:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: on-failure
 
   query-service:
     build:
@@ -81,9 +106,56 @@ services:
       KAFKA_TOPIC: ${KAFKA_TOPIC}
       KAFKA_GROUP: ${KAFKA_GROUP}
     depends_on:
-      - postgres-query
-      - kafka
+      postgres-query:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: on-failure
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  event-store:
+    build:
+      context: ./event-store
+      dockerfile: Dockerfile
+    ports:
+      - "8090:8090"
+    environment:
+      CLICKHOUSE_HOST: ${CLICKHOUSE_HOST}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+      KAFKA_BROKER: ${KAFKA_BROKER}
+      KAFKA_TOPIC: ${KAFKA_TOPIC}
+      KAFKA_GROUP: event-store-group
+      PORT: 8090
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    restart: on-failure
 
 volumes:
   postgres-auth-data:
   postgres-query-data:
+  clickhouse-data:
