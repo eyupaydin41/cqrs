@@ -3,19 +3,10 @@ package api
 import (
 	"net/http"
 
+	. "github.com/eyupaydin41/auth-service/model/request"
 	"github.com/eyupaydin41/auth-service/service"
 	"github.com/gin-gonic/gin"
 )
-
-type RegisterRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
 
 func RegisterHandler(userService *service.UserService) gin.HandlerFunc {
 	return func(c *gin.Context) {

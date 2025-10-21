@@ -27,9 +27,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${POSTGRES_AUTH_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_AUTH_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_AUTH_DB}
     volumes:
       - postgres-auth-data:/var/lib/postgresql/data
 
@@ -38,9 +38,9 @@ services:
     ports:
       - "5433:5432"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: query_db
+      POSTGRES_USER: ${POSTGRES_QUERY_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_QUERY_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_QUERY_DB}
     volumes:
       - postgres-query-data:/var/lib/postgresql/data
 
@@ -52,14 +52,14 @@ services:
       - "8088:8088"
     environment:
       DB_HOST: postgres-auth
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: auth_db
+      DB_USER: ${POSTGRES_AUTH_USER}
+      DB_PASSWORD: ${POSTGRES_AUTH_PASSWORD}
+      DB_NAME: ${POSTGRES_AUTH_DB}
       DB_PORT: 5432
       DB_SSLMODE: disable
-      KAFKA_BROKER: kafka:29092
-      KAFKA_TOPIC: user-events
-      JWT_SECRET: your-secret-key-here
+      KAFKA_BROKER: ${KAFKA_BROKER}
+      KAFKA_TOPIC: ${KAFKA_TOPIC}
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
       - postgres-auth
       - kafka
@@ -72,14 +72,14 @@ services:
       - "8089:8089"
     environment:
       DB_HOST: postgres-query
-      DB_USER: postgres
-      DB_PASSWORD: postgres
-      DB_NAME: query_db
+      DB_USER: ${POSTGRES_QUERY_USER}
+      DB_PASSWORD: ${POSTGRES_QUERY_PASSWORD}
+      DB_NAME: ${POSTGRES_QUERY_DB}
       DB_PORT: 5432
       DB_SSLMODE: disable
-      KAFKA_BROKER: kafka:29092
-      KAFKA_TOPIC: user-events
-      KAFKA_GROUP: query-group
+      KAFKA_BROKER: ${KAFKA_BROKER}
+      KAFKA_TOPIC: ${KAFKA_TOPIC}
+      KAFKA_GROUP: ${KAFKA_GROUP}
     depends_on:
       - postgres-query
       - kafka

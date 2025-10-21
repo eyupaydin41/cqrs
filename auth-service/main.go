@@ -19,14 +19,7 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 
 	kafkaBroker := os.Getenv("KAFKA_BROKER")
-	if kafkaBroker == "" {
-		kafkaBroker = "localhost:9092"
-	}
-
 	kafkaTopic := os.Getenv("KAFKA_TOPIC")
-	if kafkaTopic == "" {
-		kafkaTopic = "user-events"
-	}
 
 	producer := event.NewKafkaProducer(kafkaBroker, kafkaTopic)
 	userService := service.NewUserService(userRepo, producer)
