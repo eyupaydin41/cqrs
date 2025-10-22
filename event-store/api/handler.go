@@ -6,16 +6,16 @@ import (
 	"time"
 
 	"github.com/eyupaydin41/event-store/model"
-	"github.com/eyupaydin41/event-store/repository"
+	"github.com/eyupaydin41/event-store/service"
 	"github.com/gin-gonic/gin"
 )
 
 type EventHandler struct {
-	repo *repository.EventRepository
+	service *service.EventService
 }
 
-func NewEventHandler(repo *repository.EventRepository) *EventHandler {
-	return &EventHandler{repo: repo}
+func NewEventHandler(service *service.EventService) *EventHandler {
+	return &EventHandler{service: service}
 }
 
 func (h *EventHandler) GetEvents(c *gin.Context) {
@@ -45,8 +45,6 @@ func (h *EventHandler) GetEvents(c *gin.Context) {
 		if l, err := strconv.Atoi(limit); err == nil {
 			filter.Limit = l
 		}
-	} else {
-		filter.Limit = 100
 	}
 
 	if offset := c.Query("offset"); offset != "" {
@@ -55,7 +53,7 @@ func (h *EventHandler) GetEvents(c *gin.Context) {
 		}
 	}
 
-	events, err := h.repo.GetEvents(filter)
+	events, err := h.service.GetEvents(filter)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -77,7 +75,7 @@ func (h *EventHandler) GetEventsByAggregate(c *gin.Context) {
 		}
 	}
 
-	events, err := h.repo.GetEventsByAggregateID(aggregateID, fromVersion)
+	events, err := h.service.GetEventsByAggregateID(aggregateID, fromVersion)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -103,7 +101,7 @@ func (h *EventHandler) ReplayEvents(c *gin.Context) {
 		return
 	}
 
-	events, err := h.repo.GetEventsSince(since)
+	events, err := h.service.GetEventsSince(since)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -117,7 +115,7 @@ func (h *EventHandler) ReplayEvents(c *gin.Context) {
 }
 
 func (h *EventHandler) GetEventCount(c *gin.Context) {
-	count, err := h.repo.CountEvents()
+	count, err := h.service.CountEvents()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -129,7 +127,7 @@ func (h *EventHandler) GetEventCount(c *gin.Context) {
 }
 
 func (h *EventHandler) HealthCheck(c *gin.Context) {
-	count, err := h.repo.CountEvents()
+	count, err := h.service.CountEvents()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"status": "unhealthy",

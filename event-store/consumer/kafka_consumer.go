@@ -7,17 +7,17 @@ import (
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/eyupaydin41/event-store/model"
-	"github.com/eyupaydin41/event-store/repository"
+	"github.com/eyupaydin41/event-store/service"
 	"github.com/google/uuid"
 )
 
 type EventStoreConsumer struct {
 	consumer *kafka.Consumer
 	topic    string
-	repo     *repository.EventRepository
+	service  *service.EventService
 }
 
-func NewEventStoreConsumer(broker, group, topic string, repo *repository.EventRepository) *EventStoreConsumer {
+func NewEventStoreConsumer(broker, group, topic string, service *service.EventService) *EventStoreConsumer {
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": broker,
 		"group.id":          group,
@@ -36,7 +36,7 @@ func NewEventStoreConsumer(broker, group, topic string, repo *repository.EventRe
 	return &EventStoreConsumer{
 		consumer: c,
 		topic:    topic,
-		repo:     repo,
+		service:  service,
 	}
 }
 
@@ -76,30 +76,18 @@ func (c *EventStoreConsumer) handleEvent(eventData []byte) error {
 		}
 	}
 
-	version := uint32(1)
-	if aggregateID != "" {
-		latestVersion, err := c.repo.GetLatestVersionForAggregate(aggregateID)
-		if err != nil {
-			log.Printf("error getting latest version for aggregate %s: %v", aggregateID, err)
-			return err
-		}
-		version = latestVersion + 1
-	}
-
 	event := &model.Event{
 		ID:          uuid.New().String(),
 		EventType:   eventType,
 		AggregateID: aggregateID,
 		Payload:     string(eventData),
 		Timestamp:   time.Now(),
-		Version:     version,
 	}
 
-	if err := c.repo.SaveEvent(event); err != nil {
+	if err := c.service.SaveEvent(event); err != nil {
 		return err
 	}
 
-	log.Printf("event persisted: %s (type: %s)", event.ID, eventType)
 	return nil
 }
 

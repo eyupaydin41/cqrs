@@ -8,6 +8,7 @@ import (
 	. "github.com/eyupaydin41/event-store/config"
 	"github.com/eyupaydin41/event-store/consumer"
 	"github.com/eyupaydin41/event-store/repository"
+	"github.com/eyupaydin41/event-store/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,15 +19,16 @@ func main() {
 	defer conn.Close()
 
 	repo := repository.NewEventRepository(conn)
+	eventService := service.NewEventService(repo)
 
 	kafkaBroker := GetEnv("KAFKA_BROKER")
 	kafkaTopic := GetEnv("KAFKA_TOPIC")
 	kafkaGroup := GetEnv("KAFKA_GROUP")
 
-	eventConsumer := consumer.NewEventStoreConsumer(kafkaBroker, kafkaGroup, kafkaTopic, repo)
+	eventConsumer := consumer.NewEventStoreConsumer(kafkaBroker, kafkaGroup, kafkaTopic, eventService)
 	go eventConsumer.Start()
 
-	handler := api.NewEventHandler(repo)
+	handler := api.NewEventHandler(eventService)
 
 	router := gin.Default()
 

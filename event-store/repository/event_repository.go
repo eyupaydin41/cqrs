@@ -3,9 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
-	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/eyupaydin41/event-store/model"
@@ -37,7 +35,6 @@ func (r *EventRepository) SaveEvent(event *model.Event) error {
 		return fmt.Errorf("failed to save event: %w", err)
 	}
 
-	log.Printf("event saved: %s (type: %s)", event.ID, event.EventType)
 	return nil
 }
 
@@ -111,22 +108,6 @@ func (r *EventRepository) GetEvents(filter model.EventFilter) ([]*model.Event, e
 	return events, nil
 }
 
-func (r *EventRepository) GetEventsByAggregateID(aggregateID string, fromVersion int) ([]*model.Event, error) {
-	filter := model.EventFilter{
-		AggregateID: aggregateID,
-		Limit:       1000,
-	}
-	return r.GetEvents(filter)
-}
-
-func (r *EventRepository) GetEventsSince(since time.Time) ([]*model.Event, error) {
-	filter := model.EventFilter{
-		StartTime: since,
-		Limit:     10000,
-	}
-	return r.GetEvents(filter)
-}
-
 func (r *EventRepository) CountEvents() (uint64, error) {
 	ctx := context.Background()
 	var count uint64
@@ -145,7 +126,6 @@ func (r *EventRepository) GetLatestVersionForAggregate(aggregateID string) (uint
 	err := r.conn.QueryRow(ctx, query, aggregateID).Scan(&version)
 
 	if err != nil {
-		// If no events exist for this aggregate, return 0
 		return 0, nil
 	}
 
