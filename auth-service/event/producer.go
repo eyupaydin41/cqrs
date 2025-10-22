@@ -40,3 +40,8 @@ func (kp *KafkaProducer) Publish(eventType string, payload interface{}) {
 		log.Printf("failed to send message: %v", err)
 	}
 }
+
+func (kp *KafkaProducer) Close() {
+	kp.producer.Flush(5000)
+	kp.producer.Close()
+}
