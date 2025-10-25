@@ -131,3 +131,80 @@ func (r *EventRepository) GetLatestVersionForAggregate(aggregateID string) (uint
 
 	return version, nil
 }
+
+// GetEventsAfterVersion - Belirli bir version'dan sonraki event'leri getirir
+// Snapshot'tan sonra sadece gerekli event'leri yüklemek için kullanılır
+func (r *EventRepository) GetEventsAfterVersion(aggregateID string, afterVersion uint32) ([]*model.Event, error) {
+	ctx := context.Background()
+
+	query := `
+		SELECT id, event_type, aggregate_id, payload, timestamp, version
+		FROM events
+		WHERE aggregate_id = ? AND version > ?
+		ORDER BY version ASC
+	`
+
+	rows, err := r.conn.Query(ctx, query, aggregateID, afterVersion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query events after version: %w", err)
+	}
+	defer rows.Close()
+
+	var events []*model.Event
+	for rows.Next() {
+		var event model.Event
+		var version uint32
+		if err := rows.Scan(
+			&event.ID,
+			&event.EventType,
+			&event.AggregateID,
+			&event.Payload,
+			&event.Timestamp,
+			&version,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan event: %w", err)
+		}
+		event.Version = version
+		events = append(events, &event)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	return events, nil
+}
+
+// SaveBatchEvents - Birden fazla event'i tek seferde kaydeder
+func (r *EventRepository) SaveBatchEvents(events []*model.Event) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	ctx := context.Background()
+	batch, err := r.conn.PrepareBatch(ctx, `
+		INSERT INTO events (id, event_type, aggregate_id, payload, timestamp, version)
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare batch: %w", err)
+	}
+
+	for _, event := range events {
+		if err := batch.Append(
+			event.ID,
+			event.EventType,
+			event.AggregateID,
+			event.Payload,
+			event.Timestamp,
+			event.Version,
+		); err != nil {
+			return fmt.Errorf("failed to append event to batch: %w", err)
+		}
+	}
+
+	if err := batch.Send(); err != nil {
+		return fmt.Errorf("failed to send batch: %w", err)
+	}
+
+	return nil
+}

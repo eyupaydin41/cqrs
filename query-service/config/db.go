@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/eyupaydin41/query-service/model"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -26,6 +27,10 @@ func NewPostgresDB() *gorm.DB {
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("failed to connect DB: %v", err)
+	}
+
+	if err := db.AutoMigrate(&model.User{}, &model.LoginHistory{}); err != nil {
+		log.Fatalf("failed to auto-migrate: %v", err)
 	}
 
 	fmt.Println("Connected to Query DB!")

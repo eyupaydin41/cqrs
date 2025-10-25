@@ -58,36 +58,72 @@ func (c *EventStoreConsumer) Start() {
 func (c *EventStoreConsumer) handleEvent(eventData []byte) error {
 	var envelope map[string]interface{}
 	if err := json.Unmarshal(eventData, &envelope); err != nil {
+		log.Printf("Failed to unmarshal envelope: %v", err)
 		return err
 	}
 
+	// "type" field'ını al (producer format: {"type": "...", "data": {...}})
 	eventType, ok := envelope["type"].(string)
 	if !ok {
-		log.Println("missing event type in message")
+		log.Println("missing type field in message")
 		return nil
 	}
 
-	aggregateID := ""
-	if data, ok := envelope["data"].(map[string]interface{}); ok {
-		if id, ok := data["id"].(string); ok {
-			aggregateID = id
-		} else if userID, ok := data["user_id"].(string); ok {
-			aggregateID = userID
+	// "data" field'ından event bilgilerini al
+	dataMap, ok := envelope["data"].(map[string]interface{})
+	if !ok {
+		log.Println("missing or invalid data field in message")
+		return nil
+	}
+
+	// AggregateID'yi data içinden al
+	aggregateID, _ := dataMap["aggregate_id"].(string)
+	if aggregateID == "" {
+		log.Println("missing aggregate_id in data")
+		return nil
+	}
+
+	// Timestamp'i data içinden al
+	var timestamp time.Time
+	if ts, ok := dataMap["timestamp"].(string); ok {
+		if parsed, err := time.Parse(time.RFC3339Nano, ts); err == nil {
+			timestamp = parsed
 		}
+	}
+	if timestamp.IsZero() {
+		timestamp = time.Now()
+	}
+
+	// Version'ı data içinden al
+	version := uint32(0)
+	if v, ok := dataMap["version"].(float64); ok {
+		version = uint32(v)
+	}
+
+	// Tüm event'i (data kısmını) payload olarak kaydet
+	payloadBytes, err := json.Marshal(dataMap)
+	if err != nil {
+		log.Printf("Failed to marshal payload: %v", err)
+		return err
 	}
 
 	event := &model.Event{
 		ID:          uuid.New().String(),
 		EventType:   eventType,
 		AggregateID: aggregateID,
-		Payload:     string(eventData),
-		Timestamp:   time.Now(),
+		Payload:     string(payloadBytes),
+		Timestamp:   timestamp,
+		Version:     version,
 	}
 
+	log.Printf("Event Store: Saving event %s for aggregate %s (version %d)", eventType, aggregateID, version)
+
 	if err := c.service.SaveEvent(event); err != nil {
+		log.Printf("Failed to save event: %v", err)
 		return err
 	}
 
+	log.Printf("Event Store: Successfully saved event %s", eventType)
 	return nil
 }
 

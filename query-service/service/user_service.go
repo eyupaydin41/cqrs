@@ -23,41 +23,49 @@ func NewUserService(repo *repository.UserRepository, loginHistoryRepo *repositor
 }
 
 func (s *UserService) HandleUserRegisteredEvent(eventData []byte) {
-	var payload map[string]interface{}
-	if err := json.Unmarshal(eventData, &payload); err != nil {
-		log.Println("failed to parse event:", err)
+	var envelope map[string]interface{}
+	if err := json.Unmarshal(eventData, &envelope); err != nil {
+		log.Println("failed to parse event envelope:", err)
 		return
 	}
 
-	dataField, ok := payload["data"].(map[string]interface{})
-	if !ok {
-		log.Println("missing 'data' field in event")
-		return
-	}
+	aggregateID, hasAggregateID := envelope["aggregate_id"].(string)
+	timestamp := time.Now()
 
-	id, ok := dataField["id"].(string)
-	if !ok || id == "" {
-		id = uuid.New().String()
-	}
-
-	email, ok := dataField["email"].(string)
-	if !ok {
-		email = "unknown@example.com"
-	}
-
-	createdAt := time.Now()
-	if createdAtStr, ok := dataField["created_at"].(string); ok && createdAtStr != "" {
-		if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
-			createdAt = t
-		} else {
-			log.Println("invalid created_at format, using current time")
+	if timestampStr, ok := envelope["timestamp"].(string); ok {
+		if t, err := time.Parse(time.RFC3339, timestampStr); err == nil {
+			timestamp = t
 		}
 	}
 
+	var email string
+	var userID string
+
+	if hasAggregateID {
+		userID = aggregateID
+		dataField, ok := envelope["data"].(map[string]interface{})
+		if ok {
+			if e, ok := dataField["email"].(string); ok {
+				email = e
+			}
+			if nestedData, ok := dataField["data"].(map[string]interface{}); ok {
+				if e, ok := nestedData["email"].(string); ok {
+					email = e
+				}
+			}
+		}
+	}
+
+	if email == "" {
+		email = "unknown@example.com"
+	}
+
 	user := &model.User{
-		ID:        id,
+		ID:        userID,
 		Email:     email,
-		CreatedAt: createdAt,
+		Status:    "active",
+		CreatedAt: timestamp,
+		UpdatedAt: timestamp,
 	}
 
 	if err := s.repo.Create(user); err != nil {

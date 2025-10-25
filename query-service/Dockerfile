@@ -17,7 +17,6 @@ RUN apk --no-cache add ca-certificates librdkafka
 WORKDIR /root/
 
 COPY --from=builder /app/query-service .
-COPY --from=builder /app/.env .
 
 EXPOSE 8089
 

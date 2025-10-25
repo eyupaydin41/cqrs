@@ -69,7 +69,7 @@ services:
   auth-service:
     build:
       context: ./auth-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
       - "8088:8088"
     environment:
@@ -82,6 +82,8 @@ services:
       KAFKA_BROKER: ${KAFKA_BROKER}
       KAFKA_TOPIC: ${KAFKA_TOPIC}
       JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - ./auth-service:/app:cached
     depends_on:
       postgres-auth:
         condition: service_healthy

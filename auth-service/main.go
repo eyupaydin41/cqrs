@@ -1,13 +1,13 @@
 package main
 
 import (
+	"log"
 	"os"
 
 	"github.com/eyupaydin41/auth-service/api"
+	"github.com/eyupaydin41/auth-service/command"
 	"github.com/eyupaydin41/auth-service/config"
 	"github.com/eyupaydin41/auth-service/event"
-	"github.com/eyupaydin41/auth-service/repository"
-	"github.com/eyupaydin41/auth-service/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,14 +15,11 @@ import (
 func main() {
 	config.LoadEnv()
 
-	db := config.NewPostgresDB()
-	userRepo := repository.NewUserRepository(db)
-
 	kafkaBroker := os.Getenv("KAFKA_BROKER")
 	kafkaTopic := os.Getenv("KAFKA_TOPIC")
-
 	producer := event.NewKafkaProducer(kafkaBroker, kafkaTopic)
-	userService := service.NewUserService(userRepo, producer)
+
+	cmdHandler := command.NewCommandHandler(producer)
 
 	r := gin.Default()
 
@@ -30,8 +27,16 @@ func main() {
 		c.JSON(200, gin.H{"status": "OK"})
 	})
 
-	r.POST("/register", api.RegisterHandler(userService))
-	r.POST("/login", api.LoginHandler(userService))
+	r.POST("/register", api.RegisterHandler(cmdHandler))
+	r.PUT("/users/:id/password", api.ChangePasswordHandler(cmdHandler))
+	r.PUT("/users/:id/email", api.ChangeEmailHandler(cmdHandler))
+	r.POST("/login/record", api.RecordLoginHandler(cmdHandler))
 
-	r.Run(":8088")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8088"
+	}
+
+	log.Printf("Auth service (COMMAND) starting on port %s", port)
+	r.Run(":" + port)
 }

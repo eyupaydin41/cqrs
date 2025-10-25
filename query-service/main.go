@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 
 	"github.com/eyupaydin41/query-service/api"
@@ -15,29 +16,46 @@ func main() {
 	config.LoadEnv()
 
 	db := config.NewPostgresDB()
+
+	// Repositories
 	userRepo := repository.NewUserRepository(db)
 	loginHistoryRepo := repository.NewLoginHistoryRepository(db)
-	userService := service.NewUserService(userRepo, loginHistoryRepo)
+	authRepo := repository.NewAuthProjectionRepository(db)
 
-	kafkaBroker := os.Getenv("KAFKA_BROKER")
-	if kafkaBroker == "" {
-		kafkaBroker = "localhost:9092"
+	// Auth projection tablosunu oluştur
+	if err := authRepo.CreateTable(); err != nil {
+		log.Fatalf("Failed to create auth projection table: %v", err)
 	}
+
+	// Services
+	userService := service.NewUserService(userRepo, loginHistoryRepo)
+	authService := service.NewAuthService(authRepo)
+
+	// Kafka consumer
+	kafkaBroker := os.Getenv("KAFKA_BROKER")
 
 	kafkaGroup := os.Getenv("KAFKA_GROUP")
-	if kafkaGroup == "" {
-		kafkaGroup = "query-group"
-	}
 
 	kafkaTopic := os.Getenv("KAFKA_TOPIC")
-	if kafkaTopic == "" {
-		kafkaTopic = "user-events"
-	}
 
-	consumer := event.NewKafkaConsumer(kafkaBroker, kafkaGroup, kafkaTopic, userService)
+	consumer := event.NewKafkaConsumer(kafkaBroker, kafkaGroup, kafkaTopic, userService, authService)
 	go consumer.Start()
 
 	r := gin.Default()
+
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "OK"})
+	})
+
+	// QUERY endpoints
 	r.GET("/users", api.GetUsersHandler(userRepo))
-	r.Run(":8089")
+	r.POST("/login", api.LoginHandler(authService))
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8089"
+	}
+
+	log.Printf("Query service starting on port %s", port)
+	r.Run(":" + port)
 }

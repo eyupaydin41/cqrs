@@ -9,12 +9,13 @@ import (
 )
 
 type KafkaConsumer struct {
-	consumer *kafka.Consumer
-	topic    string
-	service  *service.UserService
+	consumer    *kafka.Consumer
+	topic       string
+	service     *service.UserService
+	authService *service.AuthService
 }
 
-func NewKafkaConsumer(broker, group, topic string, service *service.UserService) *KafkaConsumer {
+func NewKafkaConsumer(broker, group, topic string, service *service.UserService, authService *service.AuthService) *KafkaConsumer {
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": broker,
 		"group.id":          group,
@@ -29,9 +30,10 @@ func NewKafkaConsumer(broker, group, topic string, service *service.UserService)
 	}
 
 	return &KafkaConsumer{
-		consumer: c,
-		topic:    topic,
-		service:  service,
+		consumer:    c,
+		topic:       topic,
+		service:     service,
+		authService: authService,
 	}
 }
 
@@ -53,17 +55,46 @@ func (kc *KafkaConsumer) handleEvent(eventData []byte) {
 		return
 	}
 
-	eventType, ok := envelope["type"].(string)
+	eventType, ok := envelope["event_type"].(string)
 	if !ok {
 		log.Println("missing event type in message")
 		return
 	}
 
 	switch eventType {
-	case "UserRegistered":
+	case "user.created":
+		if kc.authService != nil {
+			if err := kc.authService.HandleUserCreatedEvent(eventData); err != nil {
+				log.Printf("failed to handle user.created event: %v", err)
+			}
+		}
 		kc.service.HandleUserRegisteredEvent(eventData)
-	case "UserLoggedIn":
+
+	case "user.password.changed":
+		if kc.authService != nil {
+			if err := kc.authService.HandlePasswordChangedEvent(eventData); err != nil {
+				log.Printf("failed to handle user.password.changed event: %v", err)
+			}
+		}
+
+	case "user.email.changed":
+		if kc.authService != nil {
+			if err := kc.authService.HandleEmailChangedEvent(eventData); err != nil {
+				log.Printf("failed to handle user.email.changed event: %v", err)
+			}
+		}
+
+	case "user.deactivated":
+		if kc.authService != nil {
+			if err := kc.authService.HandleUserDeactivatedEvent(eventData); err != nil {
+				log.Printf("failed to handle user.deactivated event: %v", err)
+			}
+		}
+
+	case "user.login.recorded":
+		// Login history için
 		kc.service.HandleUserLoggedInEvent(eventData)
+
 	default:
 		log.Printf("unknown event type: %s\n", eventType)
 	}
