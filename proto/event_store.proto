@@ -1,0 +1,42 @@
+// event_store.proto
+// gRPC service tanımı - HTTP'deki API endpoint'lerin karşılığı
+
+syntax = "proto3";
+
+// Package name - Go'da namespace olur
+package eventstore;
+
+// Go package path
+option go_package = "github.com/eyupaydin41/proto/eventstore";
+
+// =====================================================
+// SERVICE TANIMI (HTTP'deki Router'a benzer)
+// =====================================================
+service EventStoreService {
+  // HTTP karşılığı: GET /events/aggregate/:id
+  rpc GetAggregateEvents(GetAggregateEventsRequest) returns (GetAggregateEventsResponse);
+}
+
+// =====================================================
+// REQUEST/RESPONSE MESSAGES (HTTP'deki JSON struct'lar)
+// =====================================================
+
+// HTTP'de: type GetEventsRequest struct { AggregateID string }
+message GetAggregateEventsRequest {
+  string aggregate_id = 1;  // 1 = field number (sıralama için)
+}
+
+// HTTP'de: type GetEventsResponse struct { Events []Event }
+message GetAggregateEventsResponse {
+  repeated Event events = 1;  // repeated = array/slice
+}
+
+// HTTP'de: type Event struct { ... }
+message Event {
+  string id = 1;
+  string event_type = 2;
+  string aggregate_id = 3;
+  int32 version = 4;
+  string timestamp = 5;
+  string data_json = 6;  // Event data JSON olarak string
+}

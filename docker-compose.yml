@@ -143,7 +143,8 @@ services:
       context: ./event-store
       dockerfile: Dockerfile.dev
     ports:
-      - "8090:8090"
+      - "8090:8090"  # HTTP API
+      - "9090:9090"  # gRPC Server (yeni!)
     environment:
       CLICKHOUSE_HOST: ${CLICKHOUSE_HOST}
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
@@ -152,7 +153,8 @@ services:
       KAFKA_BROKER: ${KAFKA_BROKER}
       KAFKA_TOPIC: ${KAFKA_TOPIC}
       KAFKA_GROUP: event-store-group
-      PORT: 8090
+      PORT: 8090       # HTTP port
+      GRPC_PORT: 9090  # gRPC port (yeni!)
     volumes:
       - ./event-store:/app:cached
     depends_on:
