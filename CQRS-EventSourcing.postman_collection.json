@@ -1,0 +1,597 @@
+{
+	"info": {
+		"name": "CQRS + Event Sourcing + gRPC Project",
+		"description": "Complete API collection for CQRS microservices with Event Sourcing, Kafka, and gRPC\n\n## Architecture\n- **Auth-Service (8088)**: Command Service - Write operations\n- **Query-Service (8089)**: Query Service - Read operations & Login\n- **Event-Store (8090)**: Event Store with Time Travel & Snapshots\n\n## Technologies\n- gRPC for inter-service communication\n- Kafka for event streaming\n- ClickHouse for event storage\n- PostgreSQL for read models",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "auth_service_url",
+			"value": "http://localhost:8088",
+			"type": "default"
+		},
+		{
+			"key": "query_service_url",
+			"value": "http://localhost:8089",
+			"type": "default"
+		},
+		{
+			"key": "event_store_url",
+			"value": "http://localhost:8090",
+			"type": "default"
+		},
+		{
+			"key": "user_id",
+			"value": "",
+			"type": "default"
+		},
+		{
+			"key": "jwt_token",
+			"value": "",
+			"type": "default"
+		}
+	],
+	"item": [
+		{
+			"name": "🔐 Auth Service (COMMAND) - Port 8088",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{auth_service_url}}/health",
+							"host": ["{{auth_service_url}}"],
+							"path": ["health"]
+						},
+						"description": "Check if auth service is running"
+					}
+				},
+				{
+					"name": "Register User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"user_id\", jsonData.id);",
+									"    console.log(\"User ID saved: \" + jsonData.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/register",
+							"host": ["{{auth_service_url}}"],
+							"path": ["register"]
+						},
+						"description": "Register a new user. This publishes a `user.created` event to Kafka.\n\n**Flow:**\n1. Auth-Service creates UserCreatedEvent\n2. Publishes to Kafka\n3. Event-Store consumes and saves to ClickHouse\n4. Query-Service consumes and updates read model"
+					}
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"old_password\": \"SecurePass123!\",\n  \"new_password\": \"NewSecurePass456!\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/users/{{user_id}}/password",
+							"host": ["{{auth_service_url}}"],
+							"path": ["users", "{{user_id}}", "password"]
+						},
+						"description": "Change user password. Demonstrates Event Sourcing + gRPC.\n\n**Flow (gRPC in action!):**\n1. Auth-Service calls Event-Store via **gRPC** to get aggregate history\n2. Reconstructs user aggregate from events\n3. Validates old password\n4. Changes password\n5. Publishes `user.password.changed` event to Kafka"
+					}
+				},
+				{
+					"name": "Change Email",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"new_email\": \"jane.doe@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/users/{{user_id}}/email",
+							"host": ["{{auth_service_url}}"],
+							"path": ["users", "{{user_id}}", "email"]
+						},
+						"description": "Change user email. Uses gRPC to load aggregate.\n\n**Flow:**\n1. gRPC call to Event-Store\n2. Reconstruct aggregate\n3. Change email\n4. Publish `user.email.changed` event"
+					}
+				}
+			],
+			"description": "Command Service - Handles write operations (Register, Change Password, Change Email)"
+		},
+		{
+			"name": "🔍 Query Service (QUERY) - Port 8089",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{query_service_url}}/health",
+							"host": ["{{query_service_url}}"],
+							"path": ["health"]
+						},
+						"description": "Check if query service is running"
+					}
+				},
+				{
+					"name": "Get All Users",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{query_service_url}}/users",
+							"host": ["{{query_service_url}}"],
+							"path": ["users"]
+						},
+						"description": "Get all users from read model (PostgreSQL).\n\n**CQRS Pattern:**\n- This queries the **read model** (optimized for queries)\n- Data comes from PostgreSQL, not from events\n- Updated via Kafka consumers"
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"jwt_token\", jsonData.token);",
+									"    pm.collectionVariables.set(\"user_id\", jsonData.user_id);",
+									"    console.log(\"JWT Token saved\");",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"SecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{query_service_url}}/login",
+							"host": ["{{query_service_url}}"],
+							"path": ["login"]
+						},
+						"description": "Login endpoint. Returns JWT token.\n\n**Features:**\n- Validates credentials against auth_projections table\n- Returns JWT token\n- Publishes `user.login.recorded` event to Kafka"
+					}
+				}
+			],
+			"description": "Query Service - Handles read operations and authentication"
+		},
+		{
+			"name": "📦 Event Store - Port 8090",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/health",
+							"host": ["{{event_store_url}}"],
+							"path": ["health"]
+						},
+						"description": "Check event store health + total event count"
+					}
+				},
+				{
+					"name": "Get All Events",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/events?limit=10&offset=0",
+							"host": ["{{event_store_url}}"],
+							"path": ["events"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Number of events to return"
+								},
+								{
+									"key": "offset",
+									"value": "0",
+									"description": "Offset for pagination"
+								},
+								{
+									"key": "event_type",
+									"value": "user.created",
+									"disabled": true,
+									"description": "Filter by event type"
+								},
+								{
+									"key": "aggregate_id",
+									"value": "",
+									"disabled": true,
+									"description": "Filter by aggregate ID"
+								},
+								{
+									"key": "start_time",
+									"value": "2025-10-01T00:00:00Z",
+									"disabled": true,
+									"description": "RFC3339 format"
+								},
+								{
+									"key": "end_time",
+									"value": "2025-12-31T23:59:59Z",
+									"disabled": true,
+									"description": "RFC3339 format"
+								}
+							]
+						},
+						"description": "Get all events with optional filters:\n- `event_type`: Filter by event type\n- `aggregate_id`: Filter by aggregate\n- `start_time`: Events after this time\n- `end_time`: Events before this time\n- `limit`: Pagination\n- `offset`: Pagination"
+					}
+				},
+				{
+					"name": "Get Events by Aggregate",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/events/aggregate/{{user_id}}?from_version=0",
+							"host": ["{{event_store_url}}"],
+							"path": ["events", "aggregate", "{{user_id}}"],
+							"query": [
+								{
+									"key": "from_version",
+									"value": "0",
+									"description": "Get events from this version onwards"
+								}
+							]
+						},
+						"description": "Get all events for a specific aggregate (user).\n\n**This is the endpoint that auth-service calls via gRPC!**\n\n**HTTP version:** `GET /events/aggregate/:id`\n**gRPC version:** `GetAggregateEvents(aggregateId)`"
+					}
+				},
+				{
+					"name": "Get Event Count",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/events/count",
+							"host": ["{{event_store_url}}"],
+							"path": ["events", "count"]
+						},
+						"description": "Get total number of events in ClickHouse"
+					}
+				},
+				{
+					"name": "Replay Events Since",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/events/replay?since=2025-10-25T00:00:00Z",
+							"host": ["{{event_store_url}}"],
+							"path": ["events", "replay"],
+							"query": [
+								{
+									"key": "since",
+									"value": "2025-10-25T00:00:00Z",
+									"description": "RFC3339 timestamp"
+								}
+							]
+						},
+						"description": "Get all events since a specific timestamp. Useful for replaying events."
+					}
+				}
+			],
+			"description": "Event Store - Event storage and retrieval from ClickHouse"
+		},
+		{
+			"name": "⏰ Time Travel & Replay - Port 8090",
+			"item": [
+				{
+					"name": "Get Current User State",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/replay/user/{{user_id}}/state",
+							"host": ["{{event_store_url}}"],
+							"path": ["replay", "user", "{{user_id}}", "state"]
+						},
+						"description": "**Time Travel Feature!**\n\nReconstruct the current state of a user from all events.\n\n**Event Sourcing Power:**\n- No stored state needed\n- Rebuilds user aggregate from events\n- Always accurate"
+					}
+				},
+				{
+					"name": "Get User State at Point in Time",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/replay/user/{{user_id}}/state-at?timestamp=2025-10-25T19:58:50Z",
+							"host": ["{{event_store_url}}"],
+							"path": ["replay", "user", "{{user_id}}", "state-at"],
+							"query": [
+								{
+									"key": "timestamp",
+									"value": "2025-10-25T19:58:50Z",
+									"description": "RFC3339 timestamp - see user state at this exact moment!"
+								}
+							]
+						},
+						"description": "**🚀 TIME TRAVEL!**\n\nSee what a user looked like at any point in history!\n\n**Use Cases:**\n- Audit: \"What was the user's email on Jan 1st?\"\n- Debugging: \"What state caused the bug?\"\n- Compliance: \"Show user data as of this date\"\n\n**How it works:**\n- Replays only events up to the timestamp\n- Reconstructs historical state"
+					}
+				},
+				{
+					"name": "Get User History",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/replay/user/{{user_id}}/history",
+							"host": ["{{event_store_url}}"],
+							"path": ["replay", "user", "{{user_id}}", "history"]
+						},
+						"description": "Get complete history of all changes to a user.\n\n**Returns:**\n- All state transitions\n- Timestamps of changes\n- Complete audit trail"
+					}
+				},
+				{
+					"name": "Compare States Between Two Times",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/replay/user/{{user_id}}/compare?time1=2025-10-25T19:58:00Z&time2=2025-10-25T20:00:00Z",
+							"host": ["{{event_store_url}}"],
+							"path": ["replay", "user", "{{user_id}}", "compare"],
+							"query": [
+								{
+									"key": "time1",
+									"value": "2025-10-25T19:58:00Z",
+									"description": "First timestamp (before)"
+								},
+								{
+									"key": "time2",
+									"value": "2025-10-25T20:00:00Z",
+									"description": "Second timestamp (after)"
+								}
+							]
+						},
+						"description": "**Compare user state between two points in time!**\n\n**Use Cases:**\n- \"What changed between yesterday and today?\"\n- \"Show me all modifications in October\"\n- Compliance reports\n\n**Returns:**\n- State at time1\n- State at time2\n- List of changes (diff)"
+					}
+				}
+			],
+			"description": "Time Travel & Replay - Event Sourcing superpowers! View historical states."
+		},
+		{
+			"name": "📸 Snapshots - Port 8090",
+			"item": [
+				{
+					"name": "Create Snapshot",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/snapshots/{{user_id}}",
+							"host": ["{{event_store_url}}"],
+							"path": ["snapshots", "{{user_id}}"]
+						},
+						"description": "**Performance Optimization!**\n\nCreate a snapshot of the current aggregate state.\n\n**Why Snapshots?**\n- Avoid replaying 1000+ events every time\n- Load snapshot + only recent events\n- Massive performance improvement\n\n**When to snapshot:**\n- Every N events (e.g., every 100 events)\n- On-demand for important aggregates"
+					}
+				},
+				{
+					"name": "Get Latest Snapshot",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/snapshots/{{user_id}}",
+							"host": ["{{event_store_url}}"],
+							"path": ["snapshots", "{{user_id}}"]
+						},
+						"description": "Get the most recent snapshot for an aggregate.\n\n**Performance:**\n- Without snapshot: Replay 1000 events (~100ms)\n- With snapshot: Load 1 snapshot + 10 recent events (~5ms)"
+					}
+				},
+				{
+					"name": "Get Aggregate State (with Snapshot)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/snapshots/{{user_id}}/state",
+							"host": ["{{event_store_url}}"],
+							"path": ["snapshots", "{{user_id}}", "state"]
+						},
+						"description": "Get current aggregate state using snapshot optimization.\n\n**Algorithm:**\n1. Load latest snapshot (if exists)\n2. Load events after snapshot\n3. Apply events to snapshot state\n4. Return current state\n\n**Much faster than full event replay!**"
+					}
+				}
+			],
+			"description": "Snapshots - Performance optimization for Event Sourcing"
+		},
+		{
+			"name": "🎯 Complete User Journey (Example Flow)",
+			"item": [
+				{
+					"name": "1. Register User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"user_id\", jsonData.id);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"demo@example.com\",\n  \"password\": \"DemoPass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/register",
+							"host": ["{{auth_service_url}}"],
+							"path": ["register"]
+						}
+					}
+				},
+				{
+					"name": "2. Wait 2 seconds",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"console.log('Waiting for Kafka to process event...');",
+									"setTimeout(function(){}, 2000);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{query_service_url}}/health",
+							"host": ["{{query_service_url}}"],
+							"path": ["health"]
+						},
+						"description": "Wait for Kafka consumer to process the event"
+					}
+				},
+				{
+					"name": "3. Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"jwt_token\", jsonData.token);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"demo@example.com\",\n  \"password\": \"DemoPass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{query_service_url}}/login",
+							"host": ["{{query_service_url}}"],
+							"path": ["login"]
+						}
+					}
+				},
+				{
+					"name": "4. Change Password (gRPC Demo!)",
+					"request": {
+						"method": "PUT",
+						"header": [{"key": "Content-Type", "value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"old_password\": \"DemoPass123!\",\n  \"new_password\": \"NewDemoPass456!\"\n}"
+						},
+						"url": {
+							"raw": "{{auth_service_url}}/users/{{user_id}}/password",
+							"host": ["{{auth_service_url}}"],
+							"path": ["users", "{{user_id}}", "password"]
+						},
+						"description": "This triggers gRPC call to event-store!"
+					}
+				},
+				{
+					"name": "5. View Event History",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/events/aggregate/{{user_id}}",
+							"host": ["{{event_store_url}}"],
+							"path": ["events", "aggregate", "{{user_id}}"]
+						},
+						"description": "See all events: user.created, user.password.changed"
+					}
+				},
+				{
+					"name": "6. Time Travel - See State Before Password Change",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/replay/user/{{user_id}}/state-at?timestamp=2025-10-25T19:58:50Z",
+							"host": ["{{event_store_url}}"],
+							"path": ["replay", "user", "{{user_id}}", "state-at"],
+							"query": [
+								{
+									"key": "timestamp",
+									"value": "2025-10-25T19:58:50Z",
+									"description": "Adjust to a timestamp between user.created and password.changed!"
+								}
+							]
+						},
+						"description": "Set timestamp to BEFORE password change to see old state!"
+					}
+				},
+				{
+					"name": "7. Create Snapshot",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{event_store_url}}/snapshots/{{user_id}}",
+							"host": ["{{event_store_url}}"],
+							"path": ["snapshots", "{{user_id}}"]
+						}
+					}
+				}
+			],
+			"description": "Run these requests in order to see the complete flow:\n1. Register → Kafka → Event Store + Query Service\n2. Login → Get JWT\n3. Change Password → gRPC to Event Store → Load events → Change → Publish\n4. View events in Event Store\n5. Time Travel to see historical state\n6. Create snapshot for performance"
+		}
+	]
+}
