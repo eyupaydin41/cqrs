@@ -26,3 +26,12 @@ func (r *UserRepository) GetAll() ([]model.User, error) {
 	err := r.db.Find(&users).Error
 	return users, err
 }
+
+func (r *UserRepository) FindByID(id string) (*model.User, error) {
+	var user model.User
+	err := r.db.Where("id = ?", id).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}

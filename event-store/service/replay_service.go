@@ -20,10 +20,9 @@ func NewReplayService(repo *repository.EventRepository) *ReplayService {
 
 // ReplayUserState - Belirli bir user'ın mevcut durumunu event'lerden reconstruct eder
 func (s *ReplayService) ReplayUserState(userID string) (*model.UserAggregate, error) {
-	// Kullanıcının tüm event'lerini al
 	filter := model.EventFilter{
 		AggregateID: userID,
-		Limit:       10000, // Tüm event'leri al
+		Limit:       10000,
 	}
 
 	events, err := s.repo.GetEvents(filter)

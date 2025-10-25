@@ -181,28 +181,6 @@ func (u *UserAggregate) Deactivate(reason string) error {
 	return nil
 }
 
-// RecordLogin - Login'i kaydet (stateless event)
-func (u *UserAggregate) RecordLogin(ipAddress, userAgent string) error {
-	// Business rule: User aktif olmalı
-	if u.Status != "active" {
-		return errors.New("user is not active")
-	}
-
-	// Event oluştur ve uygula
-	event := UserLoginRecordedEvent{
-		BaseEvent: BaseEvent{
-			AggregateID: u.ID,
-			Timestamp:   time.Now(),
-			Version:     u.Version + 1,
-		},
-		IPAddress: ipAddress,
-		UserAgent: userAgent,
-	}
-
-	u.applyChange(event, true)
-	return nil
-}
-
 // VerifyPassword - Password'ü doğrula (query operasyonu)
 func (u *UserAggregate) VerifyPassword(password string) error {
 	if u.Status != "active" {
@@ -232,11 +210,6 @@ func (u *UserAggregate) applyChange(event DomainEvent, isNew bool) {
 
 	case UserDeactivatedEvent:
 		u.Status = "deactivated"
-		u.UpdatedAt = e.Timestamp
-
-	case UserLoginRecordedEvent:
-		// Login event aggregate state'ini değiştirmez
-		// Sadece event store'a kaydedilir
 		u.UpdatedAt = e.Timestamp
 	}
 

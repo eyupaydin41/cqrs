@@ -2,10 +2,8 @@ package api
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/eyupaydin41/auth-service/command"
-	. "github.com/eyupaydin41/auth-service/model/request"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -13,7 +11,11 @@ import (
 // RegisterHandler - User kayıt endpoint'i (COMMAND)
 func RegisterHandler(cmdHandler *command.CommandHandler) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var req RegisterRequest
+		var req struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
+
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 			return
@@ -110,37 +112,5 @@ func ChangeEmailHandler(cmdHandler *command.CommandHandler) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "Email changed successfully"})
-	}
-}
-
-// RecordLoginHandler - Login kaydı endpoint'i (COMMAND)
-// NOT: Authentication query-service'de yapılacak, burası sadece event kaydeder
-func RecordLoginHandler(cmdHandler *command.CommandHandler) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var req struct {
-			UserID string `json:"user_id" binding:"required"`
-		}
-
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
-			return
-		}
-
-		// Command oluştur
-		cmd := command.RecordLoginCommand{
-			UserID:    req.UserID,
-			IPAddress: c.ClientIP(),
-			UserAgent: c.Request.UserAgent(),
-			Timestamp: time.Now(),
-		}
-
-		// Command'ı işle
-		err := cmdHandler.HandleRecordLogin(cmd)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Login recorded successfully"})
 	}
 }

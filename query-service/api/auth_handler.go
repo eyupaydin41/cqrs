@@ -1,13 +1,11 @@
 package api
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/eyupaydin41/query-service/event"
 	"github.com/eyupaydin41/query-service/service"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -15,8 +13,7 @@ import (
 )
 
 // LoginHandler - Login endpoint'i (QUERY)
-// Authentication query service'de yapılır
-func LoginHandler(authService *service.AuthService) gin.HandlerFunc {
+func LoginHandler(authService *service.AuthService, producer *event.KafkaProducer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			Email    string `json:"email" binding:"required,email"`
@@ -55,8 +52,8 @@ func LoginHandler(authService *service.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		// 5. Login event'ini command service'e gönder (async)
-		go recordLoginEvent(authProj.ID, c.ClientIP(), c.Request.UserAgent())
+		// 5. Login event'ini Kafka'ya publish et
+		go publishLoginEvent(producer, authProj.ID, c.ClientIP(), c.Request.UserAgent())
 
 		c.JSON(http.StatusOK, gin.H{
 			"token":   token,
@@ -81,43 +78,16 @@ func generateJWT(userID, email string) (string, error) {
 	return token.SignedString([]byte(jwtSecret))
 }
 
-// recordLoginEvent - Command service'e login event'i gönderir
-func recordLoginEvent(userID, ipAddress, userAgent string) {
-	commandServiceURL := os.Getenv("COMMAND_SERVICE_URL")
-	if commandServiceURL == "" {
-		commandServiceURL = "http://localhost:8088"
+// publishLoginEvent - Login event'ini Kafka'ya publish eder
+func publishLoginEvent(producer *event.KafkaProducer, userID, ipAddress, userAgent string) {
+	loginEvent := event.UserLoginRecordedEvent{
+		EventType:   "user.login.recorded",
+		AggregateID: userID,
+		Timestamp:   time.Now(),
+		Version:     1,
+		IPAddress:   ipAddress,
+		UserAgent:   userAgent,
 	}
 
-	reqBody := map[string]string{
-		"user_id": userID,
-	}
-
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		fmt.Printf("Failed to marshal login event: %v\n", err)
-		return
-	}
-
-	url := fmt.Sprintf("%s/login/record", commandServiceURL)
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		fmt.Printf("Failed to create login record request: %v\n", err)
-		return
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Forwarded-For", ipAddress)
-	req.Header.Set("User-Agent", userAgent)
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Printf("Failed to record login event: %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Login record returned status: %d\n", resp.StatusCode)
-	}
+	producer.Publish("user.login.recorded", loginEvent)
 }

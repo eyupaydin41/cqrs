@@ -29,30 +29,19 @@ func (s *UserService) HandleUserRegisteredEvent(eventData []byte) {
 		return
 	}
 
-	aggregateID, hasAggregateID := envelope["aggregate_id"].(string)
-	timestamp := time.Now()
-
-	if timestampStr, ok := envelope["timestamp"].(string); ok {
-		if t, err := time.Parse(time.RFC3339, timestampStr); err == nil {
-			timestamp = t
-		}
+	dataField, ok := envelope["data"].(map[string]interface{})
+	if !ok {
+		log.Println("missing data field in event")
+		return
 	}
 
-	var email string
-	var userID string
+	aggregateID, _ := dataField["aggregate_id"].(string)
+	email, _ := dataField["email"].(string)
 
-	if hasAggregateID {
-		userID = aggregateID
-		dataField, ok := envelope["data"].(map[string]interface{})
-		if ok {
-			if e, ok := dataField["email"].(string); ok {
-				email = e
-			}
-			if nestedData, ok := dataField["data"].(map[string]interface{}); ok {
-				if e, ok := nestedData["email"].(string); ok {
-					email = e
-				}
-			}
+	timestamp := time.Now()
+	if tStr, ok := dataField["timestamp"].(string); ok {
+		if t, err := time.Parse(time.RFC3339, tStr); err == nil {
+			timestamp = t
 		}
 	}
 
@@ -61,7 +50,7 @@ func (s *UserService) HandleUserRegisteredEvent(eventData []byte) {
 	}
 
 	user := &model.User{
-		ID:        userID,
+		ID:        aggregateID,
 		Email:     email,
 		Status:    "active",
 		CreatedAt: timestamp,
@@ -89,21 +78,28 @@ func (s *UserService) HandleUserLoggedInEvent(eventData []byte) {
 		return
 	}
 
-	id, ok := dataField["id"].(string)
-	if !ok || id == "" {
-		log.Println("missing or invalid user id in login event")
+	aggregateID, ok := dataField["aggregate_id"].(string)
+	if !ok || aggregateID == "" {
+		log.Println("missing or invalid aggregate_id in login event")
 		return
 	}
 
-	email, ok := dataField["email"].(string)
-	if !ok {
-		email = "unknown@example.com"
+	ipAddress, _ := dataField["ip_address"].(string)
+	userAgent, _ := dataField["user_agent"].(string)
+
+	// User bilgisini repo'dan al
+	user, err := s.repo.FindByID(aggregateID)
+	if err != nil {
+		log.Printf("user not found for login event: %s, error: %v", aggregateID, err)
+		return
 	}
 
 	loginHistory := &model.LoginHistory{
 		ID:        uuid.New().String(),
-		UserID:    id,
-		Email:     email,
+		UserID:    aggregateID,
+		Email:     user.Email,
+		IPAddress: ipAddress,
+		UserAgent: userAgent,
 		LoginAt:   time.Now(),
 		CreatedAt: time.Now(),
 	}
@@ -113,5 +109,5 @@ func (s *UserService) HandleUserLoggedInEvent(eventData []byte) {
 		return
 	}
 
-	log.Printf("User logged in: id=%s, email=%s, login_history_id=%s\n", id, email, loginHistory.ID)
+	log.Printf("User logged in: id=%s, email=%s, ip=%s, login_history_id=%s\n", aggregateID, user.Email, ipAddress, loginHistory.ID)
 }

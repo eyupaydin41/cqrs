@@ -30,7 +30,6 @@ func main() {
 	r.POST("/register", api.RegisterHandler(cmdHandler))
 	r.PUT("/users/:id/password", api.ChangePasswordHandler(cmdHandler))
 	r.PUT("/users/:id/email", api.ChangeEmailHandler(cmdHandler))
-	r.POST("/login/record", api.RecordLoginHandler(cmdHandler))
 
 	port := os.Getenv("PORT")
 	if port == "" {

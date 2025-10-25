@@ -31,15 +31,17 @@ func main() {
 	userService := service.NewUserService(userRepo, loginHistoryRepo)
 	authService := service.NewAuthService(authRepo)
 
-	// Kafka consumer
+	// Kafka setup
 	kafkaBroker := os.Getenv("KAFKA_BROKER")
-
 	kafkaGroup := os.Getenv("KAFKA_GROUP")
-
 	kafkaTopic := os.Getenv("KAFKA_TOPIC")
 
+	// Kafka consumer
 	consumer := event.NewKafkaConsumer(kafkaBroker, kafkaGroup, kafkaTopic, userService, authService)
 	go consumer.Start()
+
+	// Kafka producer (login event'leri için)
+	producer := event.NewKafkaProducer(kafkaBroker, kafkaTopic)
 
 	r := gin.Default()
 
@@ -49,7 +51,7 @@ func main() {
 
 	// QUERY endpoints
 	r.GET("/users", api.GetUsersHandler(userRepo))
-	r.POST("/login", api.LoginHandler(authService))
+	r.POST("/login", api.LoginHandler(authService, producer))
 
 	port := os.Getenv("PORT")
 	if port == "" {

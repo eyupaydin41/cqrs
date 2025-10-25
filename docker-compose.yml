@@ -94,7 +94,7 @@ services:
   query-service:
     build:
       context: ./query-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
       - "8089:8089"
     environment:
@@ -107,6 +107,9 @@ services:
       KAFKA_BROKER: ${KAFKA_BROKER}
       KAFKA_TOPIC: ${KAFKA_TOPIC}
       KAFKA_GROUP: ${KAFKA_GROUP}
+      JWT_SECRET: ${JWT_SECRET}
+    volumes:
+      - ./query-service:/app:cached
     depends_on:
       postgres-query:
         condition: service_healthy
@@ -138,7 +141,7 @@ services:
   event-store:
     build:
       context: ./event-store
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
       - "8090:8090"
     environment:
@@ -150,6 +153,8 @@ services:
       KAFKA_TOPIC: ${KAFKA_TOPIC}
       KAFKA_GROUP: event-store-group
       PORT: 8090
+    volumes:
+      - ./event-store:/app:cached
     depends_on:
       clickhouse:
         condition: service_healthy

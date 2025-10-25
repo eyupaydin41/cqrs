@@ -11,7 +11,7 @@ import (
 type KafkaConsumer struct {
 	consumer    *kafka.Consumer
 	topic       string
-	service     *service.UserService
+	userService *service.UserService
 	authService *service.AuthService
 }
 
@@ -32,7 +32,7 @@ func NewKafkaConsumer(broker, group, topic string, service *service.UserService,
 	return &KafkaConsumer{
 		consumer:    c,
 		topic:       topic,
-		service:     service,
+		userService: service,
 		authService: authService,
 	}
 }
@@ -49,13 +49,14 @@ func (kc *KafkaConsumer) Start() {
 }
 
 func (kc *KafkaConsumer) handleEvent(eventData []byte) {
+	log.Println("✅ Received event:", string(eventData))
 	var envelope map[string]interface{}
 	if err := json.Unmarshal(eventData, &envelope); err != nil {
 		log.Println("failed to parse event envelope:", err)
 		return
 	}
 
-	eventType, ok := envelope["event_type"].(string)
+	eventType, ok := envelope["type"].(string)
 	if !ok {
 		log.Println("missing event type in message")
 		return
@@ -68,7 +69,7 @@ func (kc *KafkaConsumer) handleEvent(eventData []byte) {
 				log.Printf("failed to handle user.created event: %v", err)
 			}
 		}
-		kc.service.HandleUserRegisteredEvent(eventData)
+		kc.userService.HandleUserRegisteredEvent(eventData)
 
 	case "user.password.changed":
 		if kc.authService != nil {
@@ -92,8 +93,7 @@ func (kc *KafkaConsumer) handleEvent(eventData []byte) {
 		}
 
 	case "user.login.recorded":
-		// Login history için
-		kc.service.HandleUserLoggedInEvent(eventData)
+		kc.userService.HandleUserLoggedInEvent(eventData)
 
 	default:
 		log.Printf("unknown event type: %s\n", eventType)

@@ -87,28 +87,6 @@ func (h *CommandHandler) HandleChangeEmail(cmd ChangeEmailCommand) error {
 	return nil
 }
 
-// HandleRecordLogin - Login kaydı command'ını işler
-// NOT: Event Sourcing olmadan basitleştirildi - şimdilik sadece event publish ediyor
-func (h *CommandHandler) HandleRecordLogin(cmd RecordLoginCommand) error {
-	log.Printf("Handling RecordLogin command for user: %s", cmd.UserID)
-
-	// Aggregate oluştur
-	aggregate := domain.NewUserAggregate(cmd.UserID)
-
-	// Login'i kaydet
-	err := aggregate.RecordLogin(cmd.IPAddress, cmd.UserAgent)
-	if err != nil {
-		return fmt.Errorf("failed to record login: %w", err)
-	}
-
-	// Event'leri Kafka'ya publish et
-	h.publishEvents(aggregate.GetUncommittedChanges())
-	aggregate.MarkChangesAsCommitted()
-
-	log.Printf("Login recorded successfully for user: %s", cmd.UserID)
-	return nil
-}
-
 // publishEvents - Event'leri Kafka'ya publish eder
 func (h *CommandHandler) publishEvents(events []domain.DomainEvent) {
 	for _, event := range events {
