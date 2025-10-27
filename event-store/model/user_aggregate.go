@@ -53,15 +53,12 @@ func (u *UserAggregate) ApplyEvent(event *Event) error {
 }
 
 func (u *UserAggregate) applyUserCreated(data map[string]interface{}, timestamp time.Time) error {
-	userData, ok := data["data"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid user.created event data")
-	}
-
-	if id, ok := userData["id"].(string); ok {
+	if id, ok := data["aggregate_id"].(string); ok {
+		u.ID = id
+	} else if id, ok := data["id"].(string); ok {
 		u.ID = id
 	}
-	if email, ok := userData["email"].(string); ok {
+	if email, ok := data["email"].(string); ok {
 		u.Email = email
 	}
 
@@ -73,13 +70,7 @@ func (u *UserAggregate) applyUserCreated(data map[string]interface{}, timestamp 
 }
 
 func (u *UserAggregate) applyUserUpdated(data map[string]interface{}, timestamp time.Time) error {
-	userData, ok := data["data"].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	// Email değişikliği varsa
-	if email, ok := userData["email"].(string); ok && email != "" {
+	if email, ok := data["email"].(string); ok && email != "" {
 		u.Email = email
 	}
 
@@ -94,12 +85,7 @@ func (u *UserAggregate) applyUserDeleted(data map[string]interface{}, timestamp 
 }
 
 func (u *UserAggregate) applyEmailChanged(data map[string]interface{}, timestamp time.Time) error {
-	userData, ok := data["data"].(map[string]interface{})
-	if !ok {
-		return nil
-	}
-
-	if newEmail, ok := userData["new_email"].(string); ok {
+	if newEmail, ok := data["new_email"].(string); ok {
 		u.Email = newEmail
 	}
 
