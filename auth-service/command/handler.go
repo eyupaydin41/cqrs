@@ -47,39 +47,28 @@ func (h *CommandHandler) HandleRegisterUser(cmd RegisterUserCommand) error {
 }
 
 // HandleChangePassword - Şifre değiştirme command'ını işler
-// Event Sourcing ile: Aggregate'i history'den reconstruct eder
+// Event Sourcing ile: Aggregate'i snapshot'tan reconstruct eder (PERFORMANSLI!)
 func (h *CommandHandler) HandleChangePassword(cmd ChangePasswordCommand) error {
 	log.Printf("Handling ChangePassword command for user: %s", cmd.UserID)
 
-	// 1. Event history'yi gRPC ile çek
-	// HTTP'de: http.Get("http://event-store:8090/events/aggregate/" + userID)
-	// gRPC'de: client.GetAggregateEvents(...)
-	log.Printf("🔄 Loading aggregate %s from event-store via gRPC...", cmd.UserID)
-	events, err := h.eventStoreClient.GetAggregateHistory(cmd.UserID)
+	// 1. Snapshot kullanarak aggregate'i yükle
+	// Snapshot varsa: snapshot + sonraki eventler (HIZLI!)
+	// Snapshot yoksa: tüm eventler (yavaş ama çalışır)
+	log.Printf("🔄 Loading aggregate %s with snapshot from event-store via gRPC...", cmd.UserID)
+	aggregate, err := h.eventStoreClient.GetAggregateWithSnapshot(cmd.UserID)
 	if err != nil {
-		return fmt.Errorf("failed to load aggregate history: %w", err)
+		return fmt.Errorf("failed to load aggregate with snapshot: %w", err)
 	}
 
-	if len(events) == 0 {
-		return fmt.Errorf("user not found: %s", cmd.UserID)
-	}
+	log.Printf("✅ Aggregate loaded: Status=%s, Email=%s, Version=%d", aggregate.Status, aggregate.Email, aggregate.Version)
 
-	// 2. Aggregate oluştur
-	aggregate := domain.NewUserAggregate(cmd.UserID)
-
-	// 3. History'den state'i reconstruct et
-	log.Printf("📦 Reconstructing aggregate from %d events", len(events))
-	aggregate.LoadFromHistory(events)
-
-	log.Printf("✅ Aggregate loaded: Status=%s, Email=%s", aggregate.Status, aggregate.Email)
-
-	// 4. Command'ı uygula
+	// 2. Command'ı uygula
 	err = aggregate.ChangePassword(cmd.OldPassword, cmd.NewPassword)
 	if err != nil {
 		return fmt.Errorf("failed to change password: %w", err)
 	}
 
-	// 5. Yeni event'leri Kafka'ya publish et
+	// 3. Yeni event'leri Kafka'ya publish et
 	h.publishEvents(aggregate.GetUncommittedChanges())
 	aggregate.MarkChangesAsCommitted()
 
@@ -88,34 +77,26 @@ func (h *CommandHandler) HandleChangePassword(cmd ChangePasswordCommand) error {
 }
 
 // HandleChangeEmail - Email değiştirme command'ını işler
-// Event Sourcing ile: Aggregate'i history'den reconstruct eder
+// Event Sourcing ile: Aggregate'i snapshot'tan reconstruct eder (PERFORMANSLI!)
 func (h *CommandHandler) HandleChangeEmail(cmd ChangeEmailCommand) error {
 	log.Printf("Handling ChangeEmail command for user: %s", cmd.UserID)
 
-	// 1. Event history'yi gRPC ile çek
-	log.Printf("🔄 Loading aggregate %s from event-store via gRPC...", cmd.UserID)
-	events, err := h.eventStoreClient.GetAggregateHistory(cmd.UserID)
+	// 1. Snapshot kullanarak aggregate'i yükle
+	log.Printf("🔄 Loading aggregate %s with snapshot from event-store via gRPC...", cmd.UserID)
+	aggregate, err := h.eventStoreClient.GetAggregateWithSnapshot(cmd.UserID)
 	if err != nil {
-		return fmt.Errorf("failed to load aggregate history: %w", err)
+		return fmt.Errorf("failed to load aggregate with snapshot: %w", err)
 	}
 
-	if len(events) == 0 {
-		return fmt.Errorf("user not found: %s", cmd.UserID)
-	}
+	log.Printf("✅ Aggregate loaded: Status=%s, Email=%s, Version=%d", aggregate.Status, aggregate.Email, aggregate.Version)
 
-	// 2. Aggregate oluştur ve history'den load et
-	aggregate := domain.NewUserAggregate(cmd.UserID)
-	log.Printf("📦 Reconstructing aggregate from %d events", len(events))
-	aggregate.LoadFromHistory(events)
-	log.Printf("✅ Aggregate loaded: Status=%s, Email=%s", aggregate.Status, aggregate.Email)
-
-	// 3. Command'ı uygula
+	// 2. Command'ı uygula
 	err = aggregate.ChangeEmail(cmd.NewEmail)
 	if err != nil {
 		return fmt.Errorf("failed to change email: %w", err)
 	}
 
-	// 4. Event'leri Kafka'ya publish et
+	// 3. Event'leri Kafka'ya publish et
 	h.publishEvents(aggregate.GetUncommittedChanges())
 	aggregate.MarkChangesAsCommitted()
 

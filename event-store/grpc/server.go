@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net"
 
@@ -15,12 +16,14 @@ import (
 type EventStoreServer struct {
 	pb.UnimplementedEventStoreServiceServer // Forward compatibility için gerekli
 	eventService                            *service.EventService
+	snapshotService                         *service.SnapshotService
 }
 
 // NewEventStoreServer - Constructor
-func NewEventStoreServer(eventService *service.EventService) *EventStoreServer {
+func NewEventStoreServer(eventService *service.EventService, snapshotService *service.SnapshotService) *EventStoreServer {
 	return &EventStoreServer{
-		eventService: eventService,
+		eventService:    eventService,
+		snapshotService: snapshotService,
 	}
 }
 
@@ -63,14 +66,58 @@ func (s *EventStoreServer) GetAggregateEvents(
 	}, nil
 }
 
+// GetAggregateWithSnapshot - Snapshot kullanarak aggregate state'ini getir
+func (s *EventStoreServer) GetAggregateWithSnapshot(
+	ctx context.Context,
+	req *pb.GetAggregateWithSnapshotRequest,
+) (*pb.GetAggregateWithSnapshotResponse, error) {
+	log.Printf("gRPC: GetAggregateWithSnapshot called for aggregate_id: %s", req.AggregateId)
+
+	aggregateID := req.AggregateId
+
+	// Snapshot service ile aggregate'i yükle
+	// Bu otomatik olarak:
+	// 1. Snapshot varsa: snapshot + sonraki eventleri kullanır
+	// 2. Snapshot yoksa: tüm eventleri kullanır
+	aggregate, err := s.snapshotService.LoadAggregateWithSnapshot(aggregateID)
+	if err != nil {
+		log.Printf("gRPC: Error loading aggregate with snapshot: %v", err)
+		return nil, err
+	}
+
+	// Aggregate'in state'ini JSON'a serialize et
+	stateJSON, err := json.Marshal(aggregate)
+	if err != nil {
+		log.Printf("gRPC: Error marshaling aggregate state: %v", err)
+		return nil, err
+	}
+
+	// Snapshot'tan mı yüklendi kontrol et
+	hasSnapshot, _ := s.snapshotService.HasSnapshot(aggregateID)
+
+	// EventCount: Toplam kaç event replay edildi
+	eventsReplayed := aggregate.EventCount
+
+	log.Printf("gRPC: Aggregate loaded - Version: %d, EventsReplayed: %d, FromSnapshot: %v",
+		aggregate.Version, eventsReplayed, hasSnapshot)
+
+	return &pb.GetAggregateWithSnapshotResponse{
+		AggregateId:    aggregateID,
+		Version:        aggregate.Version,
+		StateJson:      string(stateJSON),
+		FromSnapshot:   hasSnapshot,
+		EventsReplayed: uint32(eventsReplayed),
+	}, nil
+}
+
 // StartGRPCServer - gRPC server'ı başlat
 // HTTP'de: router.Run(":8090")
-func StartGRPCServer(port string, eventService *service.EventService) error {
+func StartGRPCServer(port string, eventService *service.EventService, snapshotService *service.SnapshotService) error {
 	// gRPC server oluştur
 	grpcServer := grpc.NewServer()
 
 	// Service'i register et
-	pb.RegisterEventStoreServiceServer(grpcServer, NewEventStoreServer(eventService))
+	pb.RegisterEventStoreServiceServer(grpcServer, NewEventStoreServer(eventService, snapshotService))
 
 	// Listen
 	listener, err := net.Listen("tcp", port)

@@ -9,7 +9,7 @@
 
 // Package name - Go'da namespace olur
 
-package proto
+package eventstore
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -201,6 +201,128 @@ func (x *Event) GetDataJson() string {
 	return ""
 }
 
+// Snapshot ile aggregate getirme request
+type GetAggregateWithSnapshotRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AggregateId   string                 `protobuf:"bytes,1,opt,name=aggregate_id,json=aggregateId,proto3" json:"aggregate_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetAggregateWithSnapshotRequest) Reset() {
+	*x = GetAggregateWithSnapshotRequest{}
+	mi := &file_proto_event_store_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAggregateWithSnapshotRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAggregateWithSnapshotRequest) ProtoMessage() {}
+
+func (x *GetAggregateWithSnapshotRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_event_store_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAggregateWithSnapshotRequest.ProtoReflect.Descriptor instead.
+func (*GetAggregateWithSnapshotRequest) Descriptor() ([]byte, []int) {
+	return file_proto_event_store_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GetAggregateWithSnapshotRequest) GetAggregateId() string {
+	if x != nil {
+		return x.AggregateId
+	}
+	return ""
+}
+
+// Snapshot ile aggregate getirme response
+type GetAggregateWithSnapshotResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	AggregateId    string                 `protobuf:"bytes,1,opt,name=aggregate_id,json=aggregateId,proto3" json:"aggregate_id,omitempty"`
+	Version        uint32                 `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
+	StateJson      string                 `protobuf:"bytes,3,opt,name=state_json,json=stateJson,proto3" json:"state_json,omitempty"`                 // Aggregate'in JSON state'i
+	FromSnapshot   bool                   `protobuf:"varint,4,opt,name=from_snapshot,json=fromSnapshot,proto3" json:"from_snapshot,omitempty"`       // Snapshot'tan mı yüklendi?
+	EventsReplayed uint32                 `protobuf:"varint,5,opt,name=events_replayed,json=eventsReplayed,proto3" json:"events_replayed,omitempty"` // Kaç event replay edildi?
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *GetAggregateWithSnapshotResponse) Reset() {
+	*x = GetAggregateWithSnapshotResponse{}
+	mi := &file_proto_event_store_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetAggregateWithSnapshotResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetAggregateWithSnapshotResponse) ProtoMessage() {}
+
+func (x *GetAggregateWithSnapshotResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_event_store_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAggregateWithSnapshotResponse.ProtoReflect.Descriptor instead.
+func (*GetAggregateWithSnapshotResponse) Descriptor() ([]byte, []int) {
+	return file_proto_event_store_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *GetAggregateWithSnapshotResponse) GetAggregateId() string {
+	if x != nil {
+		return x.AggregateId
+	}
+	return ""
+}
+
+func (x *GetAggregateWithSnapshotResponse) GetVersion() uint32 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *GetAggregateWithSnapshotResponse) GetStateJson() string {
+	if x != nil {
+		return x.StateJson
+	}
+	return ""
+}
+
+func (x *GetAggregateWithSnapshotResponse) GetFromSnapshot() bool {
+	if x != nil {
+		return x.FromSnapshot
+	}
+	return false
+}
+
+func (x *GetAggregateWithSnapshotResponse) GetEventsReplayed() uint32 {
+	if x != nil {
+		return x.EventsReplayed
+	}
+	return 0
+}
+
 var File_proto_event_store_proto protoreflect.FileDescriptor
 
 const file_proto_event_store_proto_rawDesc = "" +
@@ -218,9 +340,19 @@ const file_proto_event_store_proto_rawDesc = "" +
 	"\faggregate_id\x18\x03 \x01(\tR\vaggregateId\x12\x18\n" +
 	"\aversion\x18\x04 \x01(\x05R\aversion\x12\x1c\n" +
 	"\ttimestamp\x18\x05 \x01(\tR\ttimestamp\x12\x1b\n" +
-	"\tdata_json\x18\x06 \x01(\tR\bdataJson2x\n" +
+	"\tdata_json\x18\x06 \x01(\tR\bdataJson\"D\n" +
+	"\x1fGetAggregateWithSnapshotRequest\x12!\n" +
+	"\faggregate_id\x18\x01 \x01(\tR\vaggregateId\"\xcc\x01\n" +
+	" GetAggregateWithSnapshotResponse\x12!\n" +
+	"\faggregate_id\x18\x01 \x01(\tR\vaggregateId\x12\x18\n" +
+	"\aversion\x18\x02 \x01(\rR\aversion\x12\x1d\n" +
+	"\n" +
+	"state_json\x18\x03 \x01(\tR\tstateJson\x12#\n" +
+	"\rfrom_snapshot\x18\x04 \x01(\bR\ffromSnapshot\x12'\n" +
+	"\x0fevents_replayed\x18\x05 \x01(\rR\x0eeventsReplayed2\xef\x01\n" +
 	"\x11EventStoreService\x12c\n" +
-	"\x12GetAggregateEvents\x12%.eventstore.GetAggregateEventsRequest\x1a&.eventstore.GetAggregateEventsResponseB)Z'github.com/eyupaydin41/proto/eventstoreb\x06proto3"
+	"\x12GetAggregateEvents\x12%.eventstore.GetAggregateEventsRequest\x1a&.eventstore.GetAggregateEventsResponse\x12u\n" +
+	"\x18GetAggregateWithSnapshot\x12+.eventstore.GetAggregateWithSnapshotRequest\x1a,.eventstore.GetAggregateWithSnapshotResponseB)Z'github.com/eyupaydin41/proto/eventstoreb\x06proto3"
 
 var (
 	file_proto_event_store_proto_rawDescOnce sync.Once
@@ -234,18 +366,22 @@ func file_proto_event_store_proto_rawDescGZIP() []byte {
 	return file_proto_event_store_proto_rawDescData
 }
 
-var file_proto_event_store_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_proto_event_store_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_proto_event_store_proto_goTypes = []any{
-	(*GetAggregateEventsRequest)(nil),  // 0: eventstore.GetAggregateEventsRequest
-	(*GetAggregateEventsResponse)(nil), // 1: eventstore.GetAggregateEventsResponse
-	(*Event)(nil),                      // 2: eventstore.Event
+	(*GetAggregateEventsRequest)(nil),        // 0: eventstore.GetAggregateEventsRequest
+	(*GetAggregateEventsResponse)(nil),       // 1: eventstore.GetAggregateEventsResponse
+	(*Event)(nil),                            // 2: eventstore.Event
+	(*GetAggregateWithSnapshotRequest)(nil),  // 3: eventstore.GetAggregateWithSnapshotRequest
+	(*GetAggregateWithSnapshotResponse)(nil), // 4: eventstore.GetAggregateWithSnapshotResponse
 }
 var file_proto_event_store_proto_depIdxs = []int32{
 	2, // 0: eventstore.GetAggregateEventsResponse.events:type_name -> eventstore.Event
 	0, // 1: eventstore.EventStoreService.GetAggregateEvents:input_type -> eventstore.GetAggregateEventsRequest
-	1, // 2: eventstore.EventStoreService.GetAggregateEvents:output_type -> eventstore.GetAggregateEventsResponse
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
+	3, // 2: eventstore.EventStoreService.GetAggregateWithSnapshot:input_type -> eventstore.GetAggregateWithSnapshotRequest
+	1, // 3: eventstore.EventStoreService.GetAggregateEvents:output_type -> eventstore.GetAggregateEventsResponse
+	4, // 4: eventstore.EventStoreService.GetAggregateWithSnapshot:output_type -> eventstore.GetAggregateWithSnapshotResponse
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -262,7 +398,7 @@ func file_proto_event_store_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_event_store_proto_rawDesc), len(file_proto_event_store_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

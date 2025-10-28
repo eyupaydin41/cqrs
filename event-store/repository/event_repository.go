@@ -174,37 +174,3 @@ func (r *EventRepository) GetEventsAfterVersion(aggregateID string, afterVersion
 
 	return events, nil
 }
-
-// SaveBatchEvents - Birden fazla event'i tek seferde kaydeder
-func (r *EventRepository) SaveBatchEvents(events []*model.Event) error {
-	if len(events) == 0 {
-		return nil
-	}
-
-	ctx := context.Background()
-	batch, err := r.conn.PrepareBatch(ctx, `
-		INSERT INTO events (id, event_type, aggregate_id, payload, timestamp, version)
-	`)
-	if err != nil {
-		return fmt.Errorf("failed to prepare batch: %w", err)
-	}
-
-	for _, event := range events {
-		if err := batch.Append(
-			event.ID,
-			event.EventType,
-			event.AggregateID,
-			event.Payload,
-			event.Timestamp,
-			event.Version,
-		); err != nil {
-			return fmt.Errorf("failed to append event to batch: %w", err)
-		}
-	}
-
-	if err := batch.Send(); err != nil {
-		return fmt.Errorf("failed to send batch: %w", err)
-	}
-
-	return nil
-}

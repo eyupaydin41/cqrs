@@ -222,3 +222,8 @@ func (s *SnapshotService) AutoCreateSnapshots(aggregateID string, snapshotInterv
 
 	return nil
 }
+
+// HasSnapshot - Aggregate için snapshot olup olmadığını kontrol eder
+func (s *SnapshotService) HasSnapshot(aggregateID string) (bool, error) {
+	return s.snapshotRepo.HasSnapshot(aggregateID)
+}

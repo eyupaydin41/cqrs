@@ -15,6 +15,11 @@ option go_package = "github.com/eyupaydin41/proto/eventstore";
 service EventStoreService {
   // HTTP karşılığı: GET /events/aggregate/:id
   rpc GetAggregateEvents(GetAggregateEventsRequest) returns (GetAggregateEventsResponse);
+
+  // Snapshot kullanarak aggregate state'ini getir (PERFORMANSLI!)
+  // Snapshot varsa: snapshot + sonraki eventler
+  // Snapshot yoksa: tüm eventler
+  rpc GetAggregateWithSnapshot(GetAggregateWithSnapshotRequest) returns (GetAggregateWithSnapshotResponse);
 }
 
 // =====================================================
@@ -39,4 +44,18 @@ message Event {
   int32 version = 4;
   string timestamp = 5;
   string data_json = 6;  // Event data JSON olarak string
+}
+
+// Snapshot ile aggregate getirme request
+message GetAggregateWithSnapshotRequest {
+  string aggregate_id = 1;
+}
+
+// Snapshot ile aggregate getirme response
+message GetAggregateWithSnapshotResponse {
+  string aggregate_id = 1;
+  uint32 version = 2;
+  string state_json = 3;  // Aggregate'in JSON state'i
+  bool from_snapshot = 4;  // Snapshot'tan mı yüklendi?
+  uint32 events_replayed = 5;  // Kaç event replay edildi?
 }

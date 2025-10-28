@@ -37,7 +37,7 @@ func main() {
 	kafkaTopic := GetEnv("KAFKA_TOPIC")
 	kafkaGroup := GetEnv("KAFKA_GROUP")
 
-	eventConsumer := consumer.NewEventStoreConsumer(kafkaBroker, kafkaGroup, kafkaTopic, eventService)
+	eventConsumer := consumer.NewEventStoreConsumer(kafkaBroker, kafkaGroup, kafkaTopic, eventService, snapshotService)
 	go eventConsumer.Start()
 
 	// Handlers
@@ -82,7 +82,7 @@ func main() {
 	// HTTP'den fark: Ayrı bir goroutine'de çalışır
 	go func() {
 		log.Printf("🚀 gRPC server starting on port %s", grpcPort)
-		if err := grpcserver.StartGRPCServer(":"+grpcPort, eventService); err != nil {
+		if err := grpcserver.StartGRPCServer(":"+grpcPort, eventService, snapshotService); err != nil {
 			log.Fatalf("failed to start gRPC server: %v", err)
 		}
 	}()

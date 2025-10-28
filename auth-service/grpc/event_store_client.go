@@ -167,6 +167,37 @@ func (c *EventStoreClient) pbEventToDomainEvent(pbEvent *pb.Event) (domain.Domai
 	}
 }
 
+// GetAggregateWithSnapshot - Snapshot kullanarak aggregate state'ini getir
+func (c *EventStoreClient) GetAggregateWithSnapshot(aggregateID string) (*domain.UserAggregate, error) {
+	log.Printf("gRPC Call: GetAggregateWithSnapshot for aggregate_id=%s", aggregateID)
+
+	// Context oluştur
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// gRPC call yap
+	resp, err := c.client.GetAggregateWithSnapshot(ctx, &pb.GetAggregateWithSnapshotRequest{
+		AggregateId: aggregateID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("gRPC call failed: %w", err)
+	}
+
+	log.Printf("gRPC Response: Version=%d, FromSnapshot=%v, EventsReplayed=%d",
+		resp.Version, resp.FromSnapshot, resp.EventsReplayed)
+
+	// JSON state'i aggregate'e deserialize et
+	aggregate := domain.NewUserAggregate(aggregateID)
+	if err := json.Unmarshal([]byte(resp.StateJson), aggregate); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal aggregate state: %w", err)
+	}
+
+	log.Printf("✅ Aggregate loaded from snapshot - Version: %d, Email: %s, Status: %s",
+		aggregate.Version, aggregate.Email, aggregate.Status)
+
+	return aggregate, nil
+}
+
 // Close - Connection'ı kapat
 func (c *EventStoreClient) Close() error {
 	return c.conn.Close()

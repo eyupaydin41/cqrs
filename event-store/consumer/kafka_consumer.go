@@ -12,12 +12,13 @@ import (
 )
 
 type EventStoreConsumer struct {
-	consumer *kafka.Consumer
-	topic    string
-	service  *service.EventService
+	consumer        *kafka.Consumer
+	topic           string
+	service         *service.EventService
+	snapshotService *service.SnapshotService
 }
 
-func NewEventStoreConsumer(broker, group, topic string, service *service.EventService) *EventStoreConsumer {
+func NewEventStoreConsumer(broker, group, topic string, service *service.EventService, snapshotService *service.SnapshotService) *EventStoreConsumer {
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": broker,
 		"group.id":          group,
@@ -34,9 +35,10 @@ func NewEventStoreConsumer(broker, group, topic string, service *service.EventSe
 	log.Printf("event store consumer subscribed to topic: %s", topic)
 
 	return &EventStoreConsumer{
-		consumer: c,
-		topic:    topic,
-		service:  service,
+		consumer:        c,
+		topic:           topic,
+		service:         service,
+		snapshotService: snapshotService,
 	}
 }
 
@@ -124,6 +126,14 @@ func (c *EventStoreConsumer) handleEvent(eventData []byte) error {
 	}
 
 	log.Printf("Event Store: Successfully saved event %s", eventType)
+
+	// Otomatik snapshot oluştur (her 50 event'te bir)
+	if c.snapshotService != nil {
+		if err := c.snapshotService.AutoCreateSnapshots(aggregateID, 50); err != nil {
+			log.Printf("Warning: Failed to auto-create snapshot for aggregate %s: %v", aggregateID, err)
+		}
+	}
+
 	return nil
 }
 

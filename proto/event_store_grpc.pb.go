@@ -9,7 +9,7 @@
 
 // Package name - Go'da namespace olur
 
-package eventstore
+package proto
 
 import (
 	context "context"
@@ -24,7 +24,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	EventStoreService_GetAggregateEvents_FullMethodName = "/eventstore.EventStoreService/GetAggregateEvents"
+	EventStoreService_GetAggregateEvents_FullMethodName       = "/eventstore.EventStoreService/GetAggregateEvents"
+	EventStoreService_GetAggregateWithSnapshot_FullMethodName = "/eventstore.EventStoreService/GetAggregateWithSnapshot"
 )
 
 // EventStoreServiceClient is the client API for EventStoreService service.
@@ -37,6 +38,10 @@ const (
 type EventStoreServiceClient interface {
 	// HTTP karşılığı: GET /events/aggregate/:id
 	GetAggregateEvents(ctx context.Context, in *GetAggregateEventsRequest, opts ...grpc.CallOption) (*GetAggregateEventsResponse, error)
+	// Snapshot kullanarak aggregate state'ini getir (PERFORMANSLI!)
+	// Snapshot varsa: snapshot + sonraki eventler
+	// Snapshot yoksa: tüm eventler
+	GetAggregateWithSnapshot(ctx context.Context, in *GetAggregateWithSnapshotRequest, opts ...grpc.CallOption) (*GetAggregateWithSnapshotResponse, error)
 }
 
 type eventStoreServiceClient struct {
@@ -57,6 +62,16 @@ func (c *eventStoreServiceClient) GetAggregateEvents(ctx context.Context, in *Ge
 	return out, nil
 }
 
+func (c *eventStoreServiceClient) GetAggregateWithSnapshot(ctx context.Context, in *GetAggregateWithSnapshotRequest, opts ...grpc.CallOption) (*GetAggregateWithSnapshotResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetAggregateWithSnapshotResponse)
+	err := c.cc.Invoke(ctx, EventStoreService_GetAggregateWithSnapshot_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // EventStoreServiceServer is the server API for EventStoreService service.
 // All implementations must embed UnimplementedEventStoreServiceServer
 // for forward compatibility.
@@ -67,6 +82,10 @@ func (c *eventStoreServiceClient) GetAggregateEvents(ctx context.Context, in *Ge
 type EventStoreServiceServer interface {
 	// HTTP karşılığı: GET /events/aggregate/:id
 	GetAggregateEvents(context.Context, *GetAggregateEventsRequest) (*GetAggregateEventsResponse, error)
+	// Snapshot kullanarak aggregate state'ini getir (PERFORMANSLI!)
+	// Snapshot varsa: snapshot + sonraki eventler
+	// Snapshot yoksa: tüm eventler
+	GetAggregateWithSnapshot(context.Context, *GetAggregateWithSnapshotRequest) (*GetAggregateWithSnapshotResponse, error)
 	mustEmbedUnimplementedEventStoreServiceServer()
 }
 
@@ -79,6 +98,9 @@ type UnimplementedEventStoreServiceServer struct{}
 
 func (UnimplementedEventStoreServiceServer) GetAggregateEvents(context.Context, *GetAggregateEventsRequest) (*GetAggregateEventsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAggregateEvents not implemented")
+}
+func (UnimplementedEventStoreServiceServer) GetAggregateWithSnapshot(context.Context, *GetAggregateWithSnapshotRequest) (*GetAggregateWithSnapshotResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAggregateWithSnapshot not implemented")
 }
 func (UnimplementedEventStoreServiceServer) mustEmbedUnimplementedEventStoreServiceServer() {}
 func (UnimplementedEventStoreServiceServer) testEmbeddedByValue()                           {}
@@ -119,6 +141,24 @@ func _EventStoreService_GetAggregateEvents_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _EventStoreService_GetAggregateWithSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAggregateWithSnapshotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EventStoreServiceServer).GetAggregateWithSnapshot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EventStoreService_GetAggregateWithSnapshot_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EventStoreServiceServer).GetAggregateWithSnapshot(ctx, req.(*GetAggregateWithSnapshotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // EventStoreService_ServiceDesc is the grpc.ServiceDesc for EventStoreService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -129,6 +169,10 @@ var EventStoreService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAggregateEvents",
 			Handler:    _EventStoreService_GetAggregateEvents_Handler,
+		},
+		{
+			MethodName: "GetAggregateWithSnapshot",
+			Handler:    _EventStoreService_GetAggregateWithSnapshot_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
